@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phần mềm chọn tải trọng thử - Lương Xuân Ngọc - Trung tâm Kỹ thuật đường bộ</title>
+    <link rel="stylesheet" href="./css/styles.css">
+    <!-- Chart.js for plotting -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chart.js annotation plugin for vertical lines -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation"></script>
+    <!-- Include math.js for numerical calculations -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.0.1/math.min.js"></script>
+    <!-- jsPDF for PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="main-frame">
+            <!-- Left column: Input parameters -->
+            <div class="input-frame">
+                <h3>Thông số đầu vào</h3>
+                <div class="input-row">
+                    <label for="spanLength">Chiều dài nhịp (m):</label>
+                    <input type="number" id="spanLength" class="input-field" step="0.1">
+                    
+                    <label for="sectionX">Vị trí mặt cắt (m):</label>
+                    <input type="number" id="sectionX" class="input-field" step="0.1">
+                </div>
+                
+                <!-- Design load section -->
+                <div class="design-frame">
+                    <h4>Tải trọng thiết kế</h4>
+                    <div class="input-row">
+                        <label for="designLoadType">Loại tải trọng:</label>
+                        <select id="designLoadType" class="input-field">
+                            <option value="H10">H10</option>
+                            <option value="H13">H13</option>
+                            <option value="H18">H18</option>
+                            <option value="H30">H30</option>
+                            <option value="HL93" selected>HL93</option>
+                            <option value="custom">Nhập moment thiết kế</option>
+                        </select>
+                        
+                        <label for="impactFactor">Hệ số xung kích:</label>
+                        <input type="number" id="impactFactor" class="input-field" value="1.33" step="0.01">
+                    </div>
+                    
+                    <div id="designMomentFrame" class="input-row hidden">
+                        <label for="designMoment">Moment thiết kế (kN.m):</label>
+                        <input type="number" id="designMoment" class="input-field" step="0.1">
+                    </div>
+                    
+                    <div class="input-row">
+                        <label for="lowerBound">Cận dưới:</label>
+                        <input type="number" id="lowerBound" class="input-field" value="0.75" step="0.01">
+                        <span>(Tỷ lệ moment tối thiểu)</span>
+                    </div>
+                    
+                    <div class="input-row">
+                        <label for="upperBound">Cận trên:</label>
+                        <input type="number" id="upperBound" class="input-field" value="1.0" step="0.01">
+                        <span>(Tỷ lệ moment tối đa)</span>
+                    </div>
+                </div>
+                
+                <!-- Test load section -->
+                <div class="test-frame">
+                    <h4>Tải trọng thử</h4>
+                    <div class="input-row">
+                        <label for="numAxles">Số trục xe tải:</label>
+                        <input type="number" id="numAxles" class="input-field" value="2" min="1" max="10">
+                        
+                        <button id="fillAxleLoads" class="button">Điền tải trọng</button>
+                    </div>
+                    
+                    <div class="input-row">
+                        <label for="numTrucks">Số xe tải:</label>
+                        <input type="number" id="numTrucks" class="input-field" value="1" min="1">
+                        
+                        <label for="truckSpacing">Khoảng cách xe (m):</label>
+                        <input type="number" id="truckSpacing" class="input-field" value="6" step="0.1" disabled>
+                    </div>
+                    
+                    <div class="config-buttons">
+                        <button id="saveConfig" class="button">Lưu cấu hình</button>
+                        <button id="loadConfig" class="button">Tải cấu hình</button>
+                        <button id="manageConfigs" class="button">Quản lý cấu hình</button>
+                    </div>
+                    
+                    <div id="axleFrameContainer" class="axle-frame-container">
+                        <div id="axleFrame" class="axle-frame">
+                            <!-- Axle inputs will be dynamically generated -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Middle column: Calculation buttons -->
+            <div class="calculation-frame">
+                <button id="autoSelectTruck" class="button primary">Chọn xe tự động</button>
+                <button id="calculate" class="button primary">Kiểm tra điều kiện</button>
+                <button id="clearTestTruck" class="button">Xóa xe thử</button>
+                <button id="exportResults" class="button">Xuất kết quả</button>
+                
+                <div id="resultLabel" class="result-label"></div>
+            </div>
+            
+            <!-- Right column: Results -->
+            <div class="result-frame">
+                <h3>Kết quả tính toán</h3>
+                <textarea id="resultText" class="result-text" readonly></textarea>
+            </div>
+        </div>
+        
+        <!-- Chart section at bottom -->
+        <div class="chart-frame">
+            <h3>Biểu đồ</h3>
+            <div class="chart-options">
+                <label>
+                    <input type="radio" name="chartType" value="so_sanh" checked>
+                    Biểu đồ So sánh
+                </label>
+                <label>
+                    <input type="radio" name="chartType" value="rieng">
+                    Biểu đồ Riêng
+                </label>
+            </div>
+            
+            <div id="comparisonChart" class="chart-container">
+                <canvas id="comparisonCanvas"></canvas>
+            </div>
+            
+            <div id="separateCharts" class="chart-container hidden">
+                <div class="chart-row">
+                    <div class="chart-half">
+                        <h4>Biểu đồ Moment Tải trọng Thiết kế</h4>
+                        <canvas id="designCanvas"></canvas>
+                    </div>
+                    <div class="chart-half">
+                        <h4>Biểu đồ Moment Tải trọng Thử</h4>
+                        <canvas id="testCanvas"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="chart-legend">
+                Chú thích: —— Đỏ: Moment thiết kế (có xung kích)   —·— Xanh: Moment xe tải thử   - - Xám: Cận trên và Cận dưới
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal for truck configuration management -->
+    <div id="configModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Quản lý cấu hình xe tải</h2>
+            
+            <div class="config-list-container">
+                <table id="configTable" class="config-table">
+                    <thead>
+                        <tr>
+                            <th>Tên cấu hình</th>
+                            <th>Số trục</th>
+                            <th>Tổng tải trọng (tấn)</th>
+                            <th>Ngày lưu</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Configuration rows will be dynamically added -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="modal-buttons">
+                <button id="loadSelectedConfig" class="button">Tải cấu hình</button>
+                <button id="editSelectedConfig" class="button">Chỉnh sửa cấu hình</button>
+                <button id="deleteSelectedConfig" class="button">Xóa cấu hình</button>
+                <button id="refreshConfigList" class="button">Làm mới danh sách</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Scripts -->
+    <script src="./js/bridge-calculator.js"></script>
+    <script src="bridge-app.js"></script>
+</body>
+</html>
